@@ -10,7 +10,7 @@
 # Env overrides:
 #   SINA_VERSION=0.3.1   # pin a version (default: the version this script was published with)
 #   SINA_GET=https://get.ottomind.ai   # download host (mirrors, tests)
-#   SINA_PREFIX=/usr/local/bin
+#   SINA_PREFIX=/usr/local/bin   # or a user directory without sudo; set it after the pipe: curl … | SINA_PREFIX=… bash
 #   SINA_DEBUG=1         # verbose
 
 set -euo pipefail
@@ -38,8 +38,7 @@ trap 'fail "install aborted (line $LINENO)"' ERR
 detect_os() {
   case "$(uname -s)" in
     Linux*)   echo linux  ;;
-    Darwin*)  echo darwin ;;
-    *) fail "unsupported OS: $(uname -s)" ;;
+    *) fail "sina checks Linux servers and runs only on Linux (this is $(uname -s)); install it on the server, e.g.: ssh my-server 'curl -fsSL https://get.ottomind.ai/sina | sudo bash'" ;;
   esac
 }
 
@@ -71,14 +70,14 @@ fi
 debug "http client: $HTTP"
 
 # ---------- privilege ----------
+# A user directory (SINA_PREFIX=$HOME/.local/bin) is created without sudo; sudo only when the target isn't writable.
+mkdir -p "$PREFIX" 2>/dev/null || true
 SUDO=""
-if [[ "$(id -u)" -ne 0 ]]; then
-  if [[ -w "$PREFIX" ]]; then
-    SUDO=""
-  elif command -v sudo >/dev/null 2>&1; then
+if [[ "$(id -u)" -ne 0 && ! -w "$PREFIX" ]]; then
+  if command -v sudo >/dev/null 2>&1; then
     SUDO="sudo"
   else
-    fail "$PREFIX is not writable and sudo is not installed"
+    fail "$PREFIX is not writable and sudo is not installed (set SINA_PREFIX to a directory you own)"
   fi
 fi
 
@@ -131,7 +130,9 @@ tar -xzf "$tmp/$ASSET" -C "$tmp"
 [[ -f "$tmp/$BIN" ]] || fail "archive did not contain expected binary: $BIN"
 
 info "installing to $PREFIX/$BIN ..."
+$SUDO mkdir -p "$PREFIX"
 $SUDO install -m 0755 "$tmp/$BIN" "$PREFIX/$BIN"
+case ":$PATH:" in *":$PREFIX:"*) ;; *) warn "$PREFIX is not on PATH; run it as $PREFIX/$BIN or add it to PATH" ;; esac
 
 # ---------- smoke test ----------
 if "$PREFIX/$BIN" --version >/dev/null 2>&1; then
