@@ -27,16 +27,19 @@ curl -fsSL https://get.ottomind.ai/sina | sudo bash
 Pin a specific version:
 
 ```bash
-curl -fsSL https://get.ottomind.ai/sina/0.2.0 | sudo bash
+curl -fsSL https://get.ottomind.ai/sina/0.3.1 | sudo bash
 # or
-SINA_VERSION=0.2.0 curl -fsSL https://get.ottomind.ai/sina | sudo bash
+SINA_VERSION=0.3.1 curl -fsSL https://get.ottomind.ai/sina | sudo bash
 ```
 
-### Direct from GitHub
+The installer verifies the download against `SHA256SUMS` and stops on a mismatch.
+Release files, checksums and the manifest live at `https://get.ottomind.ai/sina/<version>/`
+(`latest.json` for the newest).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/19011022/sina/main/install.sh | sudo bash
-```
+### For AI agents
+
+Give the agent https://skills.ottomind.ai/sina/SKILL.md (or install the Claude skill
+https://skills.ottomind.ai/sina/sina-skill.zip). The skill is [`skill/SKILL.md`](skill/SKILL.md) in this repo.
 
 ### Build from source (no GitHub Release needed)
 
@@ -88,54 +91,36 @@ All in one place at the top of `collect.go`:
 ## Distribution flow
 
 ```
-   developer push tag v1.2.3
+   developer pushes tag v1.2.3
             │
             ▼
-   ┌───────────────────┐    builds linux/amd64,
-   │ GitHub Actions    │    linux/arm64, darwin/amd64,
-   │ release.yml       │    darwin/arm64 + SHA256SUMS
-   └────────┬──────────┘
-            │ uploads
-            ▼
-   ┌───────────────────┐
-   │ GitHub Releases   │  ← canonical binary host (CDN-backed)
-   └────────┬──────────┘
-            │ raw url to install.sh
-            ▼
-   ┌───────────────────┐
-   │ install.sh        │  detects OS/arch, downloads asset,
-   │ (in repo, main)   │  verifies sha256, drops in /usr/local/bin
-   └────────┬──────────┘
-            │ proxied by
-            ▼
-   ┌────────────────────────┐
-   │ get.ottomind.ai/sina   │  Cloudflare Worker → install.sh
-   │ (Cloudflare WK)        │  with optional version pin /sina/0.2.0
-   └────────────────────────┘
-            │
-            ▼
-        sudo bash
+   ┌───────────────────────┐   builds linux/darwin × amd64/arm64,
+   │ GitHub Actions        │   GitHub Release with SHA256SUMS
+   │ release.yml           │
+   └──────────┬────────────┘
+              │ calls ottomind-ai/get/.github/workflows/yayinla.yml
+              ▼
+   ┌───────────────────────┐   packages paket.json + skill/, scans for secrets,
+   │ shared publish        │   uploads to AWS S3 (published versions can't be
+   │ workflow              │   overwritten), updates latest + index; a
+   │                       │   Cloudflare Worker serves both addresses
+   └──────────┬────────────┘
+              ▼
+   get.ottomind.ai/sina          installer (curl … | sudo bash), binaries, SHA256SUMS, manifest
+   skills.ottomind.ai/sina       SKILL.md and the Claude skill zip
 ```
 
 ## Cutting a release
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
-GitHub Actions builds the four binaries, generates `SHA256SUMS`, and publishes
-a Release. After ~2 minutes, `curl -fsSL https://get.ottomind.ai/sina | sudo bash`
-on any VPS pulls the new version.
-
-For the `get.ottomind.ai/sina` route to work the first time:
-
-```bash
-cd cloudflare
-wrangler deploy
-```
-
-(See [`cloudflare/README.md`](cloudflare/README.md).)
+The release workflow builds the four binaries, publishes a GitHub Release and the
+get.ottomind.ai / skills.ottomind.ai files. A published version can't be overwritten;
+fix forward with a new version. No secrets: the publish job signs in to AWS with GitHub OIDC
+(see ottomind-ai/get).
 
 ## Layout
 
@@ -143,13 +128,11 @@ wrangler deploy
 .
 ├── .github/workflows/
 │   ├── ci.yml              # vet + gofmt + build on every push/PR
-│   └── release.yml         # cross-arch build + GitHub Release on v* tag
-├── cloudflare/
-│   ├── README.md           # how to deploy the Worker
-│   ├── worker.js           # get.ottomind.ai/sina → install.sh proxy
-│   └── wrangler.toml
+│   └── release.yml         # cross-arch build, GitHub Release, get.ottomind.ai publish on v* tag
 ├── go.mod
-├── install.sh              # curl|bash entrypoint (downloads from Releases)
+├── install.sh              # curl|bash entrypoint (downloads from get.ottomind.ai, verifies sha256)
+├── paket.json              # what get.ottomind.ai publishes (shared publish workflow)
+├── skill/                  # SKILL.md for AI agents (skills.ottomind.ai/sina)
 ├── install-from-source.sh  # git clone + go build (no Release needed)
 ├── README.md
 ├── main.go                 # entry, flags, plain/TUI dispatch

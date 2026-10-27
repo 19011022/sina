@@ -4,15 +4,18 @@
 #   curl -fsSL https://get.ottomind.ai/sina | bash
 #   curl -fsSL https://get.ottomind.ai/sina | sudo bash
 #
+# Published with every release at get.ottomind.ai/sina/<version>; the version below is filled in at publish time.
+# Run from the repository instead, it resolves the latest version from get.ottomind.ai/sina/latest.json.
+#
 # Env overrides:
-#   SINA_VERSION=0.2.0   # pin a version (default: latest)
-#   SINA_REPO=owner/repo
+#   SINA_VERSION=0.3.1   # pin a version (default: the version this script was published with)
+#   SINA_GET=https://get.ottomind.ai   # download host (mirrors, tests)
 #   SINA_PREFIX=/usr/local/bin
 #   SINA_DEBUG=1         # verbose
 
 set -euo pipefail
 
-REPO="${SINA_REPO:-19011022/sina}"
+GET="${SINA_GET:-https://get.ottomind.ai}"
 PREFIX="${SINA_PREFIX:-/usr/local/bin}"
 BIN="sina"
 
@@ -80,29 +83,25 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 # ---------- resolve version ----------
-VERSION="${SINA_VERSION:-}"
-if [[ -z "$VERSION" ]]; then
-  info "resolving latest version from github.com/$REPO ..."
-  api="https://api.github.com/repos/$REPO/releases/latest"
-  body="$($HTTP "$api" 2>/dev/null || true)"
-  if [[ -z "$body" ]]; then
-    fail "could not query $api — set SINA_VERSION to install a specific version"
-  fi
-  # Extract "tag_name": "v0.2.0" → 0.2.0
-  VERSION="$(echo "$body" \
-    | grep -E '"tag_name"[[:space:]]*:' \
+PUBLISHED="{{version}}"
+VERSION="${SINA_VERSION:-$PUBLISHED}"
+VERSION="${VERSION#v}"
+if [[ "$VERSION" == *"{{"* ]]; then
+  # Not a published copy (run from the repository): ask get.ottomind.ai for the latest version.
+  info "resolving latest version from $GET/sina/latest.json ..."
+  VERSION="$($HTTP "$GET/sina/latest.json" 2>/dev/null \
+    | grep -E '"version"[[:space:]]*:' \
     | head -n1 \
-    | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v?([^"]+)".*/\1/')"
-  if [[ -z "$VERSION" ]]; then
-    fail "could not parse latest version from GitHub API response"
-  fi
+    | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)"
+  [[ -n "$VERSION" ]] || fail "could not resolve the latest version — set SINA_VERSION"
 fi
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || fail "invalid version: $VERSION"
 ok "version: ${c_acc}${VERSION}${c_off}"
 
 # ---------- download ----------
-ASSET="sina_${VERSION}_${OS}_${ARCH}.tar.gz"
-URL="https://github.com/$REPO/releases/download/v${VERSION}/${ASSET}"
-SUMS_URL="https://github.com/$REPO/releases/download/v${VERSION}/SHA256SUMS"
+ASSET="sina_${OS}_${ARCH}.tar.gz"
+URL="$GET/sina/${VERSION}/${ASSET}"
+SUMS_URL="$GET/sina/${VERSION}/SHA256SUMS"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -111,30 +110,21 @@ info "downloading $ASSET ..."
 debug "url: $URL"
 $HTTP "$URL" > "$tmp/$ASSET" || fail "download failed: $URL"
 
-# ---------- verify checksum (best effort) ----------
+# ---------- verify checksum (required) ----------
 if command -v sha256sum >/dev/null 2>&1; then
   SHASUM_BIN="sha256sum"
 elif command -v shasum >/dev/null 2>&1; then
   SHASUM_BIN="shasum -a 256"
 else
-  SHASUM_BIN=""
+  fail "sha256sum or shasum is required to verify the download"
 fi
 
-if [[ -n "$SHASUM_BIN" ]]; then
-  info "verifying checksum ..."
-  expected="$($HTTP "$SUMS_URL" 2>/dev/null | awk -v f="$ASSET" '$2 == f {print $1}')"
-  if [[ -n "$expected" ]]; then
-    actual="$($SHASUM_BIN "$tmp/$ASSET" | awk '{print $1}')"
-    if [[ "$expected" != "$actual" ]]; then
-      fail "checksum mismatch: expected $expected got $actual"
-    fi
-    ok "checksum verified"
-  else
-    warn "no checksum entry found in SHA256SUMS — skipping verification"
-  fi
-else
-  warn "neither sha256sum nor shasum present — skipping verification"
-fi
+info "verifying checksum ..."
+expected="$($HTTP "$SUMS_URL" 2>/dev/null | awk -v f="$ASSET" '$2 == f {print $1}' || true)"
+[[ -n "$expected" ]] || fail "no checksum for $ASSET in $SUMS_URL"
+actual="$($SHASUM_BIN "$tmp/$ASSET" | awk '{print $1}')"
+[[ "$expected" == "$actual" ]] || fail "checksum mismatch: expected $expected got $actual"
+ok "checksum verified"
 
 # ---------- extract & install ----------
 tar -xzf "$tmp/$ASSET" -C "$tmp"

@@ -50,9 +50,9 @@ jobs:
             -ldflags="-s -w -X main.version=${VERSION}" \
             -o dist/sina .
 
-          name="sina_${VERSION}_${GOOS}_${GOARCH}"
+          # Sürümsüz ad: get.ottomind.ai/sina/<sürüm>/ ve /latest/ altında aynı adla durur.
+          name="sina_${GOOS}_${GOARCH}"
           tar -czf "dist/${name}.tar.gz" -C dist sina
-          (cd dist && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
           rm dist/sina
           ls -la dist/
 
@@ -78,9 +78,7 @@ jobs:
       - name: Combined SHA256SUMS
         run: |
           cd dist
-          ls -la
-          cat *.sha256 > SHA256SUMS
-          rm -f *.sha256
+          sha256sum *.tar.gz > SHA256SUMS
           ls -la
 
       - uses: softprops/action-gh-release@v2
@@ -90,3 +88,15 @@ jobs:
             dist/SHA256SUMS
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  # get.ottomind.ai/sina ve skills.ottomind.ai/sina: ottomind-ai/get'teki ortak yayın (paket.json, skill/SKILL.md).
+  yayinla:
+    name: get.ottomind.ai
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write     # AWS'ye GitHub OIDC ile (sır yok)
+    uses: ottomind-ai/get/.github/workflows/yayinla.yml@main
+    with:
+      ekler: sina-*
