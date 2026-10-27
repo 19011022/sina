@@ -2,6 +2,10 @@ package main
 
 import "fmt"
 
+// problem reports WARN or BAD. Info and Unknown (could not measure, e.g. ps or docker missing) are not problems;
+// they sort after Bad, so an ordered comparison against Warn would count them.
+func problem(s Status) bool { return s == StatusWarn || s == StatusBad }
+
 // decide computes the overall headline + actions from the collected report.
 func decide(r *Report) Decision {
 	var d Decision
@@ -39,7 +43,7 @@ func decide(r *Report) Decision {
 		d.Actions = append(d.Actions, "investigate memory hogs in top-by-mem table")
 	}
 	bump(r.Memory.SwapStatus)
-	if r.Memory.SwapStatus >= StatusWarn && r.Memory.SwapUsedMB > 0 {
+	if problem(r.Memory.SwapStatus) && r.Memory.SwapUsedMB > 0 {
 		d.Reasons = append(d.Reasons, fmt.Sprintf(
 			"swap usage %d MB with active swap-in %.0f KB/s — under memory pressure",
 			r.Memory.SwapUsedMB, r.Memory.SwapInRateKBs))
@@ -64,7 +68,7 @@ func decide(r *Report) Decision {
 		if m.Path == "/" {
 			continue
 		}
-		if m.Status >= StatusWarn {
+		if problem(m.Status) {
 			bump(m.Status)
 			d.Reasons = append(d.Reasons, fmt.Sprintf(
 				"mount %s at %.0f%% used", m.Path, m.UsedPct))
@@ -72,14 +76,14 @@ func decide(r *Report) Decision {
 	}
 
 	bump(r.Inodes.Status)
-	if r.Inodes.Status >= StatusWarn {
+	if problem(r.Inodes.Status) {
 		d.Reasons = append(d.Reasons, fmt.Sprintf(
 			"inode usage on / is %.0f%%", r.Inodes.UsedPct))
 		d.Actions = append(d.Actions, "remove many small files (caches, mail, sessions)")
 	}
 
 	bump(r.FDs.Status)
-	if r.FDs.Status >= StatusWarn {
+	if problem(r.FDs.Status) {
 		d.Reasons = append(d.Reasons, fmt.Sprintf(
 			"file descriptors %.0f%% used (%d / %d)", r.FDs.UsedPct, r.FDs.Used, r.FDs.Max))
 		d.Actions = append(d.Actions, "check for fd leaks or raise fs.file-max")
@@ -97,19 +101,19 @@ func decide(r *Report) Decision {
 			d.Actions = append(d.Actions, "review 'docker system df' (script will not prune for you)")
 		}
 		for _, rl := range r.Docker.RestartLoops {
-			if rl.Status >= StatusBad {
+			if rl.Status == StatusBad {
 				d.Reasons = append(d.Reasons, fmt.Sprintf(
 					"container '%s' in restart loop — %s", rl.Name, rl.Reason))
 				d.Actions = append(d.Actions, fmt.Sprintf(
 					"docker logs --tail 200 %s ; check restart policy and exit code", rl.Name))
-			} else if rl.Status >= StatusWarn {
+			} else if problem(rl.Status) {
 				d.Reasons = append(d.Reasons, fmt.Sprintf(
 					"container '%s' restarting frequently — %s", rl.Name, rl.Reason))
 			}
 		}
 	}
 
-	if r.Zombies.Status >= StatusWarn {
+	if problem(r.Zombies.Status) {
 		bump(StatusWarn)
 		d.Reasons = append(d.Reasons, fmt.Sprintf(
 			"%d zombie process(es) present", len(r.Zombies.Procs)))

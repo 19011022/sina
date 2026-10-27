@@ -16,5 +16,6 @@ jobs:
           cache: true
       - run: go vet ./...
       - run: gofmt -l . | tee /tmp/fmt && test ! -s /tmp/fmt
+      - run: go test ./...
       - run: go build -ldflags="-s -w" -o /tmp/sina .
       - run: /tmp/sina --version
