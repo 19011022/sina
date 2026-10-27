@@ -8,7 +8,7 @@
 # Run from the repository instead, it resolves the latest version from get.ottomind.ai/sina/latest.json.
 #
 # Env overrides:
-#   SINA_VERSION=0.3.1   # pin a version (default: the version this script was published with)
+#   SINA_VERSION=1.2.3   # pin a version (default: the version this script was published with)
 #   SINA_GET=https://get.ottomind.ai   # download host (mirrors, tests)
 #   SINA_PREFIX=/usr/local/bin   # or a user directory without sudo; set it after the pipe: curl … | SINA_PREFIX=… bash
 #   SINA_DEBUG=1         # verbose

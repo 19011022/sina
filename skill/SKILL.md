@@ -23,6 +23,7 @@ Run it on the server itself. From a laptop, go over SSH; on macOS or Windows sin
 curl -fsSL https://get.ottomind.ai/sina/{{version}} | sudo bash                          # this exact version (prefer in automation)
 curl -fsSL https://get.ottomind.ai/sina | sudo bash                                      # latest version
 curl -fsSL https://get.ottomind.ai/sina | SINA_PREFIX="$HOME/.local/bin" bash             # no root; the variable goes after the pipe
+curl -fsSL https://get.ottomind.ai/sina | bash                                           # already root (containers, servers without sudo)
 ssh my-server 'curl -fsSL https://get.ottomind.ai/sina | sudo bash'                        # from your laptop
 ```
 
@@ -60,5 +61,7 @@ Cron example (ask before adding it):
 
 ## Limits
 
-- Linux only (amd64, arm64). Built for Ubuntu with Docker; without Docker or systemd those sections stay empty. The Docker section needs access to the Docker socket (docker group or sudo).
+- Linux only (amd64, arm64); built for Ubuntu servers with Docker, works on other distributions (e.g. Debian).
+- Reads `/proc` and runs `df`, `ps` (package `procps`), `docker` and `journalctl`. A missing tool or permission leaves that section marked as not measured; it doesn't change the verdict. The Docker section needs access to the Docker socket (docker group or sudo).
+- `--plain` is non-interactive text with box drawing, not JSON; read the verdict line and the sections it names.
 - A snapshot, not history: run it again after a change to compare.
