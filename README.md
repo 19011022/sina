@@ -101,8 +101,9 @@ All in one place at the top of `collect.go`:
               │ calls ottomind-ai/get/.github/workflows/yayinla.yml
               ▼
    ┌───────────────────────┐   packages paket.json + skill/, scans for secrets,
-   │ shared publish        │   uploads to Cloudflare R2 (published versions
-   │ workflow              │   are locked), updates latest + index
+   │ shared publish        │   uploads to AWS S3 (published versions can't be
+   │ workflow              │   overwritten), updates latest + index; a
+   │                       │   Cloudflare Worker serves both addresses
    └──────────┬────────────┘
               ▼
    get.ottomind.ai/sina          installer (curl … | sudo bash), binaries, SHA256SUMS, manifest
@@ -118,8 +119,8 @@ git push origin v0.3.1
 
 The release workflow builds the four binaries, publishes a GitHub Release and the
 get.ottomind.ai / skills.ottomind.ai files. A published version can't be overwritten;
-fix forward with a new version. Needs the repository secrets `R2_ACCOUNT_ID`,
-`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (see ottomind-ai/get).
+fix forward with a new version. No secrets: the publish job signs in to AWS with GitHub OIDC
+(see ottomind-ai/get).
 
 ## Layout
 

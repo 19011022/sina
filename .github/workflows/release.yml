@@ -94,10 +94,9 @@ jobs:
     name: get.ottomind.ai
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write     # AWS'ye GitHub OIDC ile (sır yok)
     uses: ottomind-ai/get/.github/workflows/yayinla.yml@main
     with:
       ekler: sina-*
-    secrets:
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
