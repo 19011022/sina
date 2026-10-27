@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
@@ -23,6 +24,12 @@ func main() {
 	if *showVer {
 		fmt.Println("sina", version)
 		return
+	}
+
+	// sina reads /proc, df, journalctl and systemd: elsewhere every number would be a guess. Exit 3 = unsupported.
+	if runtime.GOOS != "linux" {
+		fmt.Fprintf(os.Stderr, "sina checks Linux servers; it can't measure %s. Run it on the server, e.g. over SSH.\n", runtime.GOOS)
+		os.Exit(3)
 	}
 
 	if *noColor {

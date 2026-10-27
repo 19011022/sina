@@ -1,7 +1,7 @@
 # sina
 
 Modern TUI health check for Ubuntu VPSes running Docker workloads. Single
-static binary, no runtime deps. Built with [Bubble Tea] + [Lip Gloss].
+static binary for Linux (amd64, arm64), no runtime deps. Built with [Bubble Tea] + [Lip Gloss].
 
 ```
 $ sina
@@ -24,14 +24,14 @@ of Medicine* was the standard medical reference for centuries.
 curl -fsSL https://get.ottomind.ai/sina | sudo bash
 ```
 
-Pin a specific version:
+Pin a specific version, or install without root into a user directory:
 
 ```bash
-curl -fsSL https://get.ottomind.ai/sina/0.3.1 | sudo bash
-# or
-SINA_VERSION=0.3.1 curl -fsSL https://get.ottomind.ai/sina | sudo bash
+curl -fsSL https://get.ottomind.ai/sina/0.4.0 | sudo bash
+curl -fsSL https://get.ottomind.ai/sina | SINA_PREFIX="$HOME/.local/bin" bash   # variables go after the pipe
 ```
 
+sina runs on Linux only; on macOS and Windows it exits with code 3.
 The installer verifies the download against `SHA256SUMS` and stops on a mismatch.
 Release files, checksums and the manifest live at `https://get.ottomind.ai/sina/<version>/`
 (`latest.json` for the newest).
@@ -66,9 +66,10 @@ auto-falls-back to `--plain`.
 - `0` everything OK
 - `1` at least one WARN
 - `2` at least one BAD
+- `3` not Linux (nothing measured)
 
 ```bash
-sina --plain >/var/log/sina.log || \
+sina --plain >"$HOME/sina.log" || \
   curl -fsS https://hooks.slack.com/... -d "vps unhealthy on $(hostname)"
 ```
 
@@ -94,7 +95,7 @@ All in one place at the top of `collect.go`:
    developer pushes tag v1.2.3
             │
             ▼
-   ┌───────────────────────┐   builds linux/darwin × amd64/arm64,
+   ┌───────────────────────┐   builds linux × amd64/arm64,
    │ GitHub Actions        │   GitHub Release with SHA256SUMS
    │ release.yml           │
    └──────────┬────────────┘
